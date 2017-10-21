@@ -16,7 +16,7 @@ ExternalProject_Add(lapack3
 	)
 
 include_directories(src ${CMAKE_CURRENT_BINARY_DIR}/lapack/include)
-link_directories(${CMAKE_CURRENT_BINARY_DIR}/lapack/lib64)
+link_directories(${CMAKE_CURRENT_BINARY_DIR}/lapack/lib ${CMAKE_CURRENT_BINARY_DIR}/lapack/lib64 /opt/local/lib/gcc7)
 file(GLOB_RECURSE source_files ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
 add_executable(project2 ${source_files})
 target_link_libraries(project2 lapacke lapack cblas blas gfortran)
