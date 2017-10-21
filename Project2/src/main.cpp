@@ -60,6 +60,38 @@ int mydgetrf(int n, double* a, int* P) {
     return 0;
 }
 
+enum dtrsm_type {
+    Lower = 0, 
+    Upper
+};
+
+double* mydtrsm(dtrsm_type t, int n, double* a, double* b, int* pvt) {
+    if (t == Upper) {
+        double* y = new double[n];
+        y[0] = b[pvt[0]];
+        for (int i = 1; i < n; ++i) {
+            double sum = b[pvt[i]];
+            for (int j = 0; j < i; ++j) {
+                sum -= y[j] * A(i, j);
+            }
+            y[i] = sum;
+        }
+        return y;
+    } else {
+        double* x = new double[n];
+        x[n-1] = b[n-1] / A(n-1, n-1);
+        for (int i = n-2; i >= 0; --i) {
+            double sum = b[i];
+            for (int j = i + 1; j < n; ++j) {
+                sum -= x[j] * A(i, j);
+            }
+            x[i] = sum / A(i, i);
+        } 
+        return x;
+    }
+}
+
+
 #undef A
 
  
