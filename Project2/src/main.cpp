@@ -1,8 +1,8 @@
 #include <iostream>
 #include "lapacke.h"
 #include "cblas.h"
-
-
+#include <cstring>
+#include <cmath>
 
 void print_matrix(const char* desc, lapack_int m, lapack_int n, double* a, lapack_int lda ) {
     lapack_int i, j;
@@ -19,22 +19,19 @@ void print_matrix(const char* desc, int n, double* a) {
 
 #define A(x, y) a[(x)*n + (y)]
 
-int mydgetrf(int n, double* a, int* P) {
-    int* pvt;
-
+int mydgetrf(int n, double* a, int* pvt) {
     for (int i = 0; i < n-1; ++i) {
         int maxind = i;
-        double maxa = abs(A(i, i)); 
+        double maxa = fabs(A(i, i)); 
         for (int t = i + 1; t < n; ++t) {
-            if (abs(A(t, i)) > maxa) {
-                 maxa = abs(A(t, i));
+            if (fabs(A(t, i)) > maxa) {
+                 maxa = fabs(A(t, i));
                  maxind = t;
             }
         }
         if (maxa == 0.0) {
             return -1;
         } else {
-            pvt = new int[n];
             for (int j = 0; j<n; ++j) pvt[j] = j;
             if (maxind != i) {
                 int temps = pvt[i];
@@ -56,7 +53,6 @@ int mydgetrf(int n, double* a, int* P) {
         }
     }
 
-    P = pvt;
     return 0;
 }
 
@@ -66,7 +62,7 @@ enum dtrsm_type {
 };
 
 double* mydtrsm(dtrsm_type t, int n, double* a, double* b, int* pvt) {
-    if (t == Upper) {
+    if (t == Lower) {
         double* y = new double[n];
         y[0] = b[pvt[0]];
         for (int i = 1; i < n; ++i) {
@@ -96,7 +92,7 @@ double* mydtrsm(dtrsm_type t, int n, double* a, double* b, int* pvt) {
 
  
 int main() {
-    const int m = 3, n = 3, lda = 3;
+    const int m = 1, n = 3;
     printf("lapack test\n");
     double a[] = 
 	{
@@ -107,27 +103,39 @@ int main() {
     
     double aa[9];
     memcpy(aa, a, sizeof(double)*9);
-    int ipiv[3];
-    print_matrix("a", m, n, a, lda);
+    int ipiv[3], iipiv[3];
+    print_matrix("a", n, n, a, n);
     
-    mydgetrf(3, aa, ipiv);
-    print_matrix("LU of a by myself", 3, aa);
+    mydgetrf(3, aa, iipiv);
+    print_matrix("LU of a by myself", n, aa);
 
 
-    lapack_int info = LAPACKE_dgetrf(LAPACK_ROW_MAJOR, m, n, a, lda, ipiv); // 由于L的对角线都是1，则这里对角线列出的是U的值
-    print_matrix("LU of a", m, n, a, lda); 
+    lapack_int info = LAPACKE_dgetrf(LAPACK_ROW_MAJOR, n, n, a, n, ipiv); 
+    print_matrix("LU of a", n, n, a, n); 
     // info = LAPACKE_dgetri(LAPACK_ROW_MAJOR, m, a, lda, ipiv);
     // print_matrix("inv(a)", m, n, a, lda); // inv(a)
     
     double b[] = {1, 1, 0};
-    cblas_dtrsm(CblasRowMajor, CblasRight, CblasUpper, CblasNoTrans, CblasNonUnit, m, n, 1, a, lda, b, 3);
-    print_matrix("b", 1, 3, b, 3);
+    double bb[3];
+    memcpy(bb, b, sizeof(double)*3);
+    print_matrix("b", 1, 3, b, n);
+    
 
-    for (int i =0; i<3; ++i) a[i*3+i] = 1;
+    double* y = mydtrsm(Lower, 3, aa, bb, iipiv);
+    double* x = mydtrsm(Upper, 3, aa, y, iipiv);
+    print_matrix("my", 1, 3, y, 3);
+    print_matrix("mx", 1, 3, x, 3);
 
-    double c[] = {1, 2, 4};
-    cblas_dtrsm(CblasRowMajor, CblasRight, CblasLower, CblasNoTrans, CblasUnit, m, n, 1, a, lda, c, 3);
-    print_matrix("c", 1, 3, c, 3);
+    for(int i = 0; i < n; i++)
+    {
+        double tmp = b[ipiv[i]-1];
+        b[ipiv[i]-1] = b[i];
+        b[i] = tmp;
+    }
+    cblas_dtrsm(CblasRowMajor, CblasLeft, CblasLower, CblasNoTrans, CblasUnit, n, m, 1.0, a, n, b, m);
+    print_matrix("ly", 1, 3, b, n);
+    cblas_dtrsm(CblasRowMajor, CblasLeft, CblasUpper, CblasNoTrans, CblasNonUnit, n, m, 1.0, a, n, b, m);
+    print_matrix("lx", 1, 3, b, n);
 
     return 0;
 }
