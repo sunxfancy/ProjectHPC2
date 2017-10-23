@@ -141,42 +141,27 @@ int hp_dgetrf(int n, double* a, int* pvt) {
         for (int t = i; t < end; ++t)
             for (int j = t+1; j < n; ++j) {
                 A(j, t) /= A(t, t);
-                for (int k = t+1; k < t+B; ++k) {
+                for (int k = t+1; k < t+B; ++k) 
                     A(j, k) -= A(j, t) * A(t, k);
-                }
             }
-        // printf("-------------------\n");
-        // printMatrix(&A(i, i), 3, 3, n);
-        
         // get LL
         for (int p = 0; p < B; ++p)
             for (int q = 0; q < B; ++q)
                 if (p == q) LL(p, q) = 1;
                 else if (p < q) LL(p, q) = 0;
                 else LL(p, q) = A(i+p, i+q);
-        // printf("-------------------\n");
-        // printMatrix(ll, B, B, B);
+
         inv_triangle(B, ll); // LL^-1
-        // printf("-------------------\n");
-        // printMatrix(ll, B, B, B);
-
         dgemm_mixed(ll, &A(i, end), temp, B, B, n-end, B, n, n-end);   // LL-1 * A(ib:end , end+1:n)
-        // printf("-------------------\n");
-        // printMatrix(temp, B, n-end, n-end);
         copy_matrix(&A(i, end), temp, B, n-end, n, n-end);  // update A(ib:end , end+1:n)
-        
-        // printf("-------------------\n");
-        // printMatrix(&A(i, i), 3, 3, n);
-
         dgemm_mixed(&A(end, i), &A(i, end), temp, n-end, B, n-end, n, n, n-end);
         minus_matrix(&A(end, end), temp, n-end, n-end, n, n-end);
     }
     for (; i < n-1; ++i) { // continue to do the unfinished part
         for (int j = i+1; j < n; ++j) {
             A(j, i) /= A(i, i);
-            for (int k = i+1; k < n; ++k) {
+            for (int k = i+1; k < n; ++k) 
                 A(j, k) -= A(j, i) * A(i, k);
-            }
         }
     }
     free(ll); free(temp);
