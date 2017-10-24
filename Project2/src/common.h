@@ -84,7 +84,6 @@ dgemm_ikj(double *a, double *b, double *c, unsigned int n, unsigned int n1, unsi
         }
 }
 
-
 void
 dgemm_mixed(double *a, double *b, double *c, unsigned int n, unsigned int n1, unsigned int n2, unsigned int la, unsigned int lb, unsigned int lc) {
     const unsigned int B = 30;
@@ -176,14 +175,14 @@ dgemm_mixed(double *a, double *b, double *c, unsigned int n, unsigned int n1, un
     dgemm_mixed(a,b,c,n,n1,n2,n1,n2,n2);
 }
 
-void
+inline void
 copy_matrix(double *a, double *b, unsigned int n, unsigned int m, unsigned int la, unsigned int lb) {
     for (int i = 0; i < n; ++i) 
         for (int j = 0; j < m; ++j)
             a[i*la+j] = b[i*lb+j];
 }
 
-void
+inline void
 minus_matrix(double *a, double *b, unsigned int n, unsigned int m, unsigned int la, unsigned int lb) {
     for (int i = 0; i < n; ++i) 
         for (int j = 0; j < m; ++j)

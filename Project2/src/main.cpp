@@ -4,56 +4,65 @@
 #include <cstring>
 #include <cmath>
 #include "common.h"
+#include <unistd.h>
 
 void print_matrix(const char* desc, lapack_int m, lapack_int n, double* a, lapack_int lda ) {
     lapack_int i, j;
     printf( "\n %s\n", desc );
     for( i = 0; i < m; i++ ) {
-            for( j = 0; j < n; j++ ) printf( " %6.2f", a[i*lda+j] );
+        for( j = 0; j < n; j++ ) printf( "\t%6.2f", a[i*lda+j] );
             printf( "\n" );
     }
 }
 
-void print_matrix(const char* desc, int n, double* a) {
+inline void print_matrix(const char* desc, int n, double* a) {
     print_matrix(desc, n, n, a, n);
 }
 
+
 #define A(x, y) a[(x)*n + (y)]
 
+/*
+ * This is the normal version for LU factorization
+ * n - matrix size
+ * a - input matrix A (output will replace that matrix)
+ * pvt - used for order transform
+ */
 int mydgetrf(int n, double* a, int* pvt) {
+    for (int j = 0; j < n; ++j) pvt[j] = j;
     for (int i = 0; i < n-1; ++i) {
         int maxind = i;
-        double maxa = fabs(A(i, i)); 
+        double maxa = abs(A(i, i)); 
         for (int t = i + 1; t < n; ++t) {
-            if (fabs(A(t, i)) > maxa) {
-                 maxa = fabs(A(t, i));
+            if (abs(A(t, i)) > maxa) {
+                 maxa = abs(A(t, i));
                  maxind = t;
             }
         }
         if (maxa == 0.0) {
             return -1;
         } else {
-            for (int j = 0; j<n; ++j) pvt[j] = j;
             if (maxind != i) {
                 int temps = pvt[i];
                 pvt[i] = pvt[maxind];
                 pvt[maxind] = temps;
 
+                double tempv;
                 for (int j = 0; j < n; ++j) {
-                    temps = A(i, j);
+                    tempv = A(i, j);
                     A(i, j) = A(maxind, j);
-                    A(maxind, j) = temps;
+                    A(maxind, j) = tempv;
                 }
             }
         }
+    // }
+    // for (int i = 0; i < n-1; ++i) {
         for (int j = i+1; j < n; ++j) {
             A(j, i) /= A(i, i);
-            for (int k = i+1; k < n; ++k) {
+            for (int k = i+1; k < n; ++k) 
                 A(j, k) -= A(j, i) * A(i, k);
-            }
         }
     }
-
     return 0;
 }
 
@@ -62,6 +71,14 @@ enum dtrsm_type {
     Upper
 };
 
+/* 
+ * normal dtrsm for calculate Ax = B
+ * t - the triangle type (Lower or Upper)
+ * n - the matrix size
+ * a - the input A matrix
+ * b - the input B vector
+ * pvt is used for order tranform
+ */
 double* mydtrsm(dtrsm_type t, int n, double* a, double* b, int* pvt) {
     if (t == Lower) {
         double* y = new double[n];
@@ -103,7 +120,14 @@ void inv_triangle(int n, double* a) {
 
 #define LL(x, y) ll[(x)*B + (y)]
 
+/** 
+ * the highest performance version (Blocked GEPP)
+ * n - matrix size
+ * a - input/output matrix
+ * pvt - used for order transform
+ */
 int hp_dgetrf(int n, double* a, int* pvt) { 
+    for (int j = 0; j<n; ++j) pvt[j] = j;
     for (int i = 0; i < n-1; ++i) {
         int maxind = i;
         double maxa = fabs(A(i, i)); 
@@ -116,7 +140,6 @@ int hp_dgetrf(int n, double* a, int* pvt) {
         if (maxa == 0.0) {
             return -1;
         } else {
-            for (int j = 0; j<n; ++j) pvt[j] = j;
             if (maxind != i) {
                 int temps = pvt[i];
                 pvt[i] = pvt[maxind];
@@ -152,28 +175,130 @@ int hp_dgetrf(int n, double* a, int* pvt) {
                 else LL(p, q) = A(i+p, i+q);
 
         inv_triangle(B, ll); // LL^-1
-        dgemm_mixed(ll, &A(i, end), temp, B, B, n-end, B, n, n-end);   // LL-1 * A(ib:end , end+1:n)
+        dgemm_mixed(ll, &A(i, end), temp, B, B, n-end, B, n, n-end);   // LL^-1 * A(ib:end , end+1:n)
         copy_matrix(&A(i, end), temp, B, n-end, n, n-end);  // update A(ib:end , end+1:n)
         dgemm_mixed(&A(end, i), &A(i, end), temp, n-end, B, n-end, n, n, n-end);
         minus_matrix(&A(end, end), temp, n-end, n-end, n, n-end);
     }
     for (; i < n-1; ++i) { // continue to do the unfinished part
         for (int j = i+1; j < n; ++j) {
-            A(j, i) /= A(i, i);
+            A(j, i) = A(j, i) / A(i, i);
             for (int k = i+1; k < n; ++k) 
-                A(j, k) -= A(j, i) * A(i, k);
+                A(j, k) = A(j, k) - A(j, i) * A(i, k);
         }
     }
     free(ll); free(temp);
     return 0;
 }
 
-
-
 #undef A
 
- 
-int main() {
+// returns GFlops
+inline double calculateFlops(double n, double time) {
+    double all = ((n-1)*n / 2) + (n*(n-1)*(2*n-1)/3); // all float point calcuation times
+    return all / time *1e-9;
+}
+
+/**
+ * This is the basic speed testing
+ */
+int runLUTest(unsigned int n) {
+    double *a, *aa, *b, *b1, *b2, *bb, n3, timed, timed2, timed3, p, p2, p3;
+    int* ipiv = new int[n];
+    struct timespec ts1,ts2,diff;
+
+    /////////////////////////////////////////////////////////
+    a = createMatrix(n, n); 
+    aa = createMatrixWithRandomData(n, n); 
+    memcpy(a, aa, sizeof(double)*n*n);
+    b = createMatrix(1, n);
+    bb = createMatrixWithRandomData(1, n);
+    memcpy(b, bb, sizeof(double)*n);
+    /////////////////////////////////////////////////////////
+
+    print_matrix("first a", n, a);
+
+    clock_gettime(CLOCK_REALTIME, &ts1);
+    lapack_int info = LAPACKE_dgetrf(LAPACK_ROW_MAJOR, n, n, a, n, ipiv); 
+    clock_gettime(CLOCK_REALTIME, &ts2);
+    for(int i = 0; i < n; i++)
+    {
+        double tmp = b[ipiv[i]-1];
+        b[ipiv[i]-1] = b[i];
+        b[i] = tmp;
+    }
+    print_matrix("a", n, a);
+    cblas_dtrsm(CblasRowMajor, CblasLeft, CblasLower, CblasNoTrans, CblasUnit, n, 1, 1.0, a, n, b, 1);
+    cblas_dtrsm(CblasRowMajor, CblasLeft, CblasUpper, CblasNoTrans, CblasNonUnit, n, 1, 1.0, a, n, b, 1);
+
+
+    //////////////////////////////////////////////////////////////////
+
+    timespec_diff(&ts1,&ts2,&diff);
+    timed = (double)(diff.tv_sec) + 1e-9 * (double)(diff.tv_nsec);
+    p = calculateFlops((double)n, timed);
+    printf("%d,\t%lf,\t%lf", n, p, timed);
+
+    memcpy(a, aa, sizeof(double)*n*n);
+    memcpy(b, bb, sizeof(double)*n);
+    print_matrix("first a1", n, a);
+    clock_gettime(CLOCK_REALTIME, &ts1);
+    int err_msg = mydgetrf(n, a, ipiv);
+    clock_gettime(CLOCK_REALTIME, &ts2);
+    double* y = mydtrsm(Lower, n, a, b, ipiv);
+    b1 = mydtrsm(Upper, n, a, y, ipiv);
+    delete[] y; 
+    if (!checkEqual(b, b1, n, 1)) {
+        printf("lapack info: %d, our error msg: %d", info, err_msg);
+        print_matrix("a1", n, a);
+        printMatrix(b, 1, n);
+        printf("\n");
+        printMatrix(b1, 1, n);
+
+        printf("\nmydgetrf error when n = %d\n", n);
+        delete[] ipiv;
+        return -1;
+    }
+
+    //////////////////////////////////////////////////////////////////
+    
+
+    timespec_diff(&ts1,&ts2,&diff);
+    timed = (double)(diff.tv_sec) + 1e-9 * (double)(diff.tv_nsec);
+    p = calculateFlops((double)n, timed);
+    printf("\t%lf,\t%lf", p, timed);
+
+    memcpy(a, aa, sizeof(double)*n*n);
+    memcpy(b, bb, sizeof(double)*n);
+    clock_gettime(CLOCK_REALTIME, &ts1);
+    hp_dgetrf(n, a, ipiv);
+    clock_gettime(CLOCK_REALTIME, &ts2);
+    y = mydtrsm(Lower, n, a, b, ipiv);
+    b2 = mydtrsm(Upper, n, a, y, ipiv);
+    delete[] y; 
+    if (!checkEqual(b, b2, n, 1)) {
+        printf("\nhp_dgetrf error when n = %d\n", n);
+        delete[] ipiv;
+        return -1;
+    }
+
+    timespec_diff(&ts1,&ts2,&diff);
+    timed = (double)(diff.tv_sec) + 1e-9 * (double)(diff.tv_nsec);
+    p = calculateFlops((double)n, timed);
+    printf("\t%lf,\t%lf", p, timed);
+
+    printf("\nmydgetrf & hp_dgetrf checked when n = %d\n", n);
+    delete[] ipiv;
+    return 0;
+}
+
+
+
+
+
+
+/* It's a small test for the correctness */
+void mytest() {
     dgemm_mixed_test(3, 4, 5);
     dgemm_mixed_test(30, 40, 50);
     dgemm_mixed_test(300, 600, 300);
@@ -243,6 +368,44 @@ int main() {
     print_matrix("ly", 1, 3, b, n);
     cblas_dtrsm(CblasRowMajor, CblasLeft, CblasUpper, CblasNoTrans, CblasNonUnit, n, m, 1.0, a, n, b, m);
     print_matrix("lx", 1, 3, b, n);
+
+}
+
+
+static const char* help_msg = "\
+-a \trun all matrix test for block size from 1000 ~ 5000\
+-n N \trun one test for special matrix size N\n\
+-f \tfind the best block size\n\
+-t \trun my small test\n\
+";
+
+/**
+* Main Function Here 
+*/
+int main(int argc, char **argv) {
+    srand(12306);
+
+    char ch; int n;
+    while((ch = getopt(argc, argv, "an:tf")) != -1) 
+        switch(ch)
+        {
+        case 'a': 
+            for (int i = 1000; i <= 5000; i+=1000)
+                runLUTest(i);
+            break;
+        case 'n':
+            n = atoi(optarg);  
+            runLUTest(n);
+            break;
+        case 'f':
+            
+            break;
+        case 't':
+            printf("run mytest\n"); mytest(); break;
+        default:
+            printf("%s", help_msg);
+            return 0;
+        }
 
     return 0;
 }
