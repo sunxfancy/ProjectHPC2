@@ -145,15 +145,16 @@ int hp_dgetrf(int n, double* a, int* pvt) {
                 pvt[i] = pvt[maxind];
                 pvt[maxind] = temps;
 
+                double tempv;
                 for (int j = 0; j < n; ++j) {
-                    temps = A(i, j);
+                    tempv = A(i, j);
                     A(i, j) = A(maxind, j);
-                    A(maxind, j) = temps;
+                    A(maxind, j) = tempv;
                 }
             }
         }
     }
-    const int B = 30;
+    const int B = 3;
     int m = n/B*B; int m1 = (n-1)/B*B; 
     double* ll = createMatrix(B, B);
     double* temp = createMatrix(n, n);
@@ -203,23 +204,24 @@ inline double calculateFlops(double n, double time) {
  * This is the basic speed testing
  */
 int runLUTest(unsigned int n) {
-    double *a, *aa, *b, *b1, *b2, *bb, n3, timed, timed2, timed3, p, p2, p3;
+    double *a, *a1, *aa, *b, *b1, *b2, *bb, n3, timed, timed2, timed3, p, p2, p3;
     int* ipiv = new int[n];
     struct timespec ts1,ts2,diff;
 
     /////////////////////////////////////////////////////////
     a = createMatrix(n, n); 
+    a1 = createMatrix(n, n); 
     aa = createMatrixWithRandomData(n, n); 
-    memcpy(a, aa, sizeof(double)*n*n);
+    memcpy(a1, aa, sizeof(double)*n*n);
     b = createMatrix(1, n);
     bb = createMatrixWithRandomData(1, n);
     memcpy(b, bb, sizeof(double)*n);
     /////////////////////////////////////////////////////////
 
-    print_matrix("first a", n, a);
+    // print_matrix("first a", n, a);
 
     clock_gettime(CLOCK_REALTIME, &ts1);
-    lapack_int info = LAPACKE_dgetrf(LAPACK_ROW_MAJOR, n, n, a, n, ipiv); 
+    lapack_int info = LAPACKE_dgetrf(LAPACK_ROW_MAJOR, n, n, a1, n, ipiv); 
     clock_gettime(CLOCK_REALTIME, &ts2);
     for(int i = 0; i < n; i++)
     {
@@ -227,10 +229,9 @@ int runLUTest(unsigned int n) {
         b[ipiv[i]-1] = b[i];
         b[i] = tmp;
     }
-    print_matrix("a", n, a);
-    cblas_dtrsm(CblasRowMajor, CblasLeft, CblasLower, CblasNoTrans, CblasUnit, n, 1, 1.0, a, n, b, 1);
-    cblas_dtrsm(CblasRowMajor, CblasLeft, CblasUpper, CblasNoTrans, CblasNonUnit, n, 1, 1.0, a, n, b, 1);
-
+    // print_matrix("a", n, a);
+    cblas_dtrsm(CblasRowMajor, CblasLeft, CblasLower, CblasNoTrans, CblasUnit, n, 1, 1.0, a1, n, b, 1);
+    cblas_dtrsm(CblasRowMajor, CblasLeft, CblasUpper, CblasNoTrans, CblasNonUnit, n, 1, 1.0, a1, n, b, 1);
 
     //////////////////////////////////////////////////////////////////
 
@@ -240,20 +241,24 @@ int runLUTest(unsigned int n) {
     printf("%d,\t%lf,\t%lf", n, p, timed);
 
     memcpy(a, aa, sizeof(double)*n*n);
-    memcpy(b, bb, sizeof(double)*n);
-    print_matrix("first a1", n, a);
+    // print_matrix("first a1", n, a);
     clock_gettime(CLOCK_REALTIME, &ts1);
     int err_msg = mydgetrf(n, a, ipiv);
     clock_gettime(CLOCK_REALTIME, &ts2);
-    double* y = mydtrsm(Lower, n, a, b, ipiv);
+    double* y = mydtrsm(Lower, n, a, bb, ipiv);
     b1 = mydtrsm(Upper, n, a, y, ipiv);
     delete[] y; 
     if (!checkEqual(b, b1, n, 1)) {
         printf("lapack info: %d, our error msg: %d", info, err_msg);
-        print_matrix("a1", n, a);
-        printMatrix(b, 1, n);
-        printf("\n");
-        printMatrix(b1, 1, n);
+        print_matrix("Right Ans:", n, a1);
+        print_matrix("mydgetrf Ans:", n, a);
+        
+        printf("Right Ans:\n");
+        printMatrix(b, 1, n); 
+        printf("mydgetrf Ans:\n");
+        printMatrix(b1, 1, n); 
+        
+        printMatrix(y, 1, n);
 
         printf("\nmydgetrf error when n = %d\n", n);
         delete[] ipiv;
@@ -269,14 +274,21 @@ int runLUTest(unsigned int n) {
     printf("\t%lf,\t%lf", p, timed);
 
     memcpy(a, aa, sizeof(double)*n*n);
-    memcpy(b, bb, sizeof(double)*n);
     clock_gettime(CLOCK_REALTIME, &ts1);
     hp_dgetrf(n, a, ipiv);
     clock_gettime(CLOCK_REALTIME, &ts2);
-    y = mydtrsm(Lower, n, a, b, ipiv);
+    y = mydtrsm(Lower, n, a, bb, ipiv);
     b2 = mydtrsm(Upper, n, a, y, ipiv);
     delete[] y; 
     if (!checkEqual(b, b2, n, 1)) {
+        print_matrix("Right Ans:", n, a1);
+        print_matrix("mydgetrf Ans:", n, a);
+        
+        printf("Right Ans:\n");
+        printMatrix(b, 1, n); 
+        printf("hp_dgetrf Ans:\n");
+        printMatrix(b2, 1, n); 
+        
         printf("\nhp_dgetrf error when n = %d\n", n);
         delete[] ipiv;
         return -1;
