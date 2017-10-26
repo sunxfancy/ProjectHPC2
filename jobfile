@@ -7,6 +7,7 @@ JOB_PATH=/home/xsun042/ProjectHPC2/Project2/
 cd $JOB_PATH
 
 mkdir build
+cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j8
 ./bin/project2 -a
