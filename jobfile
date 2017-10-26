@@ -1,0 +1,12 @@
+#!/bin/sh
+#PBS -l nodes=1:ppn=1,walltime=03:00:00
+#PBS -N SXF-Project2
+#PBS -M xsun042@ucr.edu
+
+JOB_PATH=/home/xsun042/ProjectHPC2/Project2/
+cd $JOB_PATH
+
+mkdir build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j8
+./bin/project2 -a
