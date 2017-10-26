@@ -287,7 +287,7 @@ int runLUTest(unsigned int n) {
 
     memcpy(a, aa, sizeof(double)*n*n);
     clock_gettime(CLOCK_REALTIME, &ts1);
-    hp_dgetrf(n, a, ipiv, 60);
+    hp_dgetrf(n, a, ipiv, 120);
     clock_gettime(CLOCK_REALTIME, &ts2);
     y = mydtrsm(Lower, n, a, bb, ipiv);
     b2 = mydtrsm(Upper, n, a, y, ipiv);
