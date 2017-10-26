@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 2.8)
 
 project(Project2)
 
-SET (CMAKE_CXX_FLAGS "-std=c++11 -D_GLIBCXX_USE_CXX11_ABI=0")
 SET (EXECUTABLE_OUTPUT_PATH ${CMAKE_CURRENT_BINARY_DIR}/bin)
 
 set (third_party_install_path ${CMAKE_CURRENT_BINARY_DIR}/lapack)
