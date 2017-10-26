@@ -3,6 +3,9 @@
 #PBS -N SXF-Project2
 #PBS -M xsun042@ucr.edu
 
+module load cmake-2.8.10.2
+module load gcc-4.7.2 
+
 JOB_PATH=/home/xsun042/ProjectHPC2/Project2/
 cd $JOB_PATH
 
