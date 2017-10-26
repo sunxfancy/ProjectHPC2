@@ -32,10 +32,10 @@ int mydgetrf(int n, double* a, int* pvt) {
     for (int j = 0; j < n; ++j) pvt[j] = j;
     for (int i = 0; i < n-1; ++i) {
         int maxind = i;
-        double maxa = abs(A(i, i)); 
+        double maxa = fabs(A(i, i)); 
         for (int t = i + 1; t < n; ++t) {
-            if (abs(A(t, i)) > maxa) {
-                 maxa = abs(A(t, i));
+            if (fabs(A(t, i)) > maxa) {
+                 maxa = fabs(A(t, i));
                  maxind = t;
             }
         }
@@ -55,8 +55,8 @@ int mydgetrf(int n, double* a, int* pvt) {
                 }
             }
         }
-    // }
-    // for (int i = 0; i < n-1; ++i) {
+    }
+    for (int i = 0; i < n-1; ++i) {
         for (int j = i+1; j < n; ++j) {
             A(j, i) /= A(i, i);
             for (int k = i+1; k < n; ++k) 
@@ -154,6 +154,7 @@ int hp_dgetrf(int n, double* a, int* pvt) {
             }
         }
     }
+//    print_matrix("A - init", n, a);
     const int B = 3;
     int m = n/B*B; int m1 = (n-1)/B*B; 
     double* ll = createMatrix(B, B);
@@ -165,9 +166,10 @@ int hp_dgetrf(int n, double* a, int* pvt) {
         for (int t = i; t < end; ++t)
             for (int j = t+1; j < n; ++j) {
                 A(j, t) /= A(t, t);
-                for (int k = t+1; k < t+B; ++k) 
+                for (int k = t+1; k < end; ++k) 
                     A(j, k) -= A(j, t) * A(t, k);
             }
+//        print_matrix("A0", n, a);
         // get LL
         for (int p = 0; p < B; ++p)
             for (int q = 0; q < B; ++q)
@@ -176,18 +178,27 @@ int hp_dgetrf(int n, double* a, int* pvt) {
                 else LL(p, q) = A(i+p, i+q);
 
         inv_triangle(B, ll); // LL^-1
+        memset(temp, 0, (n-end)*B*sizeof(double));
         dgemm_mixed(ll, &A(i, end), temp, B, B, n-end, B, n, n-end);   // LL^-1 * A(ib:end , end+1:n)
         copy_matrix(&A(i, end), temp, B, n-end, n, n-end);  // update A(ib:end , end+1:n)
+//        print_matrix("A1", n, a);
+
+        memset(temp, 0, (n-end)*(n-end)*sizeof(double));
         dgemm_mixed(&A(end, i), &A(i, end), temp, n-end, B, n-end, n, n, n-end);
+//        print_matrix("temp", n-end, temp);
+
         minus_matrix(&A(end, end), temp, n-end, n-end, n, n-end);
+//        print_matrix("A2", n, a);
     }
     for (; i < n-1; ++i) { // continue to do the unfinished part
         for (int j = i+1; j < n; ++j) {
-            A(j, i) = A(j, i) / A(i, i);
+            A(j, i) /= A(i, i);
             for (int k = i+1; k < n; ++k) 
-                A(j, k) = A(j, k) - A(j, i) * A(i, k);
+                A(j, k) -= A(j, i) * A(i, k);
         }
     }
+//    print_matrix("A - end", n, a);
+
     free(ll); free(temp);
     return 0;
 }
@@ -204,13 +215,14 @@ inline double calculateFlops(double n, double time) {
  * This is the basic speed testing
  */
 int runLUTest(unsigned int n) {
-    double *a, *a1, *aa, *b, *b1, *b2, *bb, n3, timed, timed2, timed3, p, p2, p3;
+    double *a, *a1, *a2, *aa, *b, *b1, *b2, *bb, n3, timed, timed2, timed3, p, p2, p3;
     int* ipiv = new int[n];
     struct timespec ts1,ts2,diff;
 
     /////////////////////////////////////////////////////////
     a = createMatrix(n, n); 
     a1 = createMatrix(n, n); 
+    a2 = createMatrix(n, n); 
     aa = createMatrixWithRandomData(n, n); 
     memcpy(a1, aa, sizeof(double)*n*n);
     b = createMatrix(1, n);
@@ -238,15 +250,15 @@ int runLUTest(unsigned int n) {
     timespec_diff(&ts1,&ts2,&diff);
     timed = (double)(diff.tv_sec) + 1e-9 * (double)(diff.tv_nsec);
     p = calculateFlops((double)n, timed);
-    printf("%d,\t%lf,\t%lf", n, p, timed);
+    printf("%d,\t%lf,\t%lf,", n, p, timed);
 
-    memcpy(a, aa, sizeof(double)*n*n);
+    memcpy(a2, aa, sizeof(double)*n*n);
     // print_matrix("first a1", n, a);
     clock_gettime(CLOCK_REALTIME, &ts1);
-    int err_msg = mydgetrf(n, a, ipiv);
+    int err_msg = mydgetrf(n, a2, ipiv);
     clock_gettime(CLOCK_REALTIME, &ts2);
-    double* y = mydtrsm(Lower, n, a, bb, ipiv);
-    b1 = mydtrsm(Upper, n, a, y, ipiv);
+    double* y = mydtrsm(Lower, n, a2, bb, ipiv);
+    b1 = mydtrsm(Upper, n, a2, y, ipiv);
     delete[] y; 
     if (!checkEqual(b, b1, n, 1)) {
         printf("lapack info: %d, our error msg: %d", info, err_msg);
@@ -271,7 +283,7 @@ int runLUTest(unsigned int n) {
     timespec_diff(&ts1,&ts2,&diff);
     timed = (double)(diff.tv_sec) + 1e-9 * (double)(diff.tv_nsec);
     p = calculateFlops((double)n, timed);
-    printf("\t%lf,\t%lf", p, timed);
+    printf("\t%lf,\t%lf,", p, timed);
 
     memcpy(a, aa, sizeof(double)*n*n);
     clock_gettime(CLOCK_REALTIME, &ts1);
@@ -281,8 +293,8 @@ int runLUTest(unsigned int n) {
     b2 = mydtrsm(Upper, n, a, y, ipiv);
     delete[] y; 
     if (!checkEqual(b, b2, n, 1)) {
-        print_matrix("Right Ans:", n, a1);
-        print_matrix("mydgetrf Ans:", n, a);
+        print_matrix("Right Ans:", n, a2);
+        print_matrix("hp_dgetrf:", n, a);
         
         printf("Right Ans:\n");
         printMatrix(b, 1, n); 
@@ -297,9 +309,9 @@ int runLUTest(unsigned int n) {
     timespec_diff(&ts1,&ts2,&diff);
     timed = (double)(diff.tv_sec) + 1e-9 * (double)(diff.tv_nsec);
     p = calculateFlops((double)n, timed);
-    printf("\t%lf,\t%lf", p, timed);
+    printf("\t%lf,\t%lf\n", p, timed);
 
-    printf("\nmydgetrf & hp_dgetrf checked when n = %d\n", n);
+//    printf("\nmydgetrf & hp_dgetrf checked when n = %d\n", n);
     delete[] ipiv;
     return 0;
 }
@@ -339,7 +351,7 @@ void mytest() {
     memcpy(aaa, a, sizeof(double)*9);
     int ipiv[3], iipiv[3], iiipiv[3];
     print_matrix("a", n, n, a, n);
-    
+
     mydgetrf(3, aa, iipiv);
     print_matrix("LU of a by myself", n, aa);
 
@@ -401,7 +413,9 @@ int main(int argc, char **argv) {
     while((ch = getopt(argc, argv, "an:tf")) != -1) 
         switch(ch)
         {
-        case 'a': 
+        case 'a':
+            printf("%s,\t%s,\t%s,\t%s,\t%s,\t%s,\t%s\n",
+                   "Size", "lapack P", "lapack T", "mydgetrf P", "mydgetrf T", "hp dgetrf P", "hp dgetrf T");
             for (int i = 1000; i <= 5000; i+=1000)
                 runLUTest(i);
             break;
