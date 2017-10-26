@@ -126,7 +126,7 @@ void inv_triangle(int n, double* a) {
  * a - input/output matrix
  * pvt - used for order transform
  */
-int hp_dgetrf(int n, double* a, int* pvt) { 
+int hp_dgetrf(int n, double* a, int* pvt, const int B) { 
     for (int j = 0; j<n; ++j) pvt[j] = j;
     for (int i = 0; i < n-1; ++i) {
         int maxind = i;
@@ -155,7 +155,7 @@ int hp_dgetrf(int n, double* a, int* pvt) {
         }
     }
 //    print_matrix("A - init", n, a);
-    const int B = 3;
+    // const int B = 3;
     int m = n/B*B; int m1 = (n-1)/B*B; 
     double* ll = createMatrix(B, B);
     double* temp = createMatrix(n, n);
@@ -287,7 +287,7 @@ int runLUTest(unsigned int n) {
 
     memcpy(a, aa, sizeof(double)*n*n);
     clock_gettime(CLOCK_REALTIME, &ts1);
-    hp_dgetrf(n, a, ipiv);
+    hp_dgetrf(n, a, ipiv, 60);
     clock_gettime(CLOCK_REALTIME, &ts2);
     y = mydtrsm(Lower, n, a, bb, ipiv);
     b2 = mydtrsm(Upper, n, a, y, ipiv);
@@ -355,7 +355,7 @@ void mytest() {
     mydgetrf(3, aa, iipiv);
     print_matrix("LU of a by myself", n, aa);
 
-    hp_dgetrf(3, aaa, iiipiv);
+    hp_dgetrf(3, aaa, iiipiv, 2);
     print_matrix("LU of hp_dgetrf", n, aaa);
 
     lapack_int info = LAPACKE_dgetrf(LAPACK_ROW_MAJOR, n, n, a, n, ipiv); 
@@ -399,7 +399,7 @@ void mytest() {
 static const char* help_msg = "\
 -a \trun all matrix test for block size from 1000 ~ 5000\
 -n N \trun one test for special matrix size N\n\
--f \tfind the best block size\n\
+-f N \tfind the best block size (with the test matrix size N)\n\
 -t \trun my small test\n\
 ";
 
@@ -410,7 +410,7 @@ int main(int argc, char **argv) {
     srand(12306);
 
     char ch; int n;
-    while((ch = getopt(argc, argv, "an:tf")) != -1) 
+    while((ch = getopt(argc, argv, "an:tf:")) != -1) 
         switch(ch)
         {
         case 'a':
@@ -423,8 +423,25 @@ int main(int argc, char **argv) {
             n = atoi(optarg);  
             runLUTest(n);
             break;
-        case 'f':
-            
+        case 'f': 
+            {
+                n = atoi(optarg);  
+                int* ipiv = new int[n];
+                double timed, p;
+                struct timespec ts1,ts2,diff;
+                printf("%s,\t%s,\t%s\n", "block size", "performance/Gflops", "time/s");
+                double* a = createMatrixWithRandomData(n, n); 
+                for (int i = 3; i <= 300; i+= 3) {
+                    clock_gettime(CLOCK_REALTIME, &ts1);
+                    hp_dgetrf(n, a, ipiv, i);
+                    clock_gettime(CLOCK_REALTIME, &ts2);
+                    timespec_diff(&ts1,&ts2,&diff);
+                    timed = (double)(diff.tv_sec) + 1e-9 * (double)(diff.tv_nsec);
+                    p = calculateFlops((double)n, timed);
+                    printf("%d,\t%lf,\t%lf\n", i, p, timed);
+                }
+                delete[] ipiv;
+            }
             break;
         case 't':
             printf("run mytest\n"); mytest(); break;
