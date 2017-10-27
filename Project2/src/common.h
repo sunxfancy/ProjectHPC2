@@ -20,14 +20,10 @@ createMatrixWithRandomData(unsigned int n, unsigned int m) {
 int
 checkEqual(double *a, double *b, unsigned int n, unsigned int m) {
     unsigned int i;
-    double sum = 0.0;
     for (i = 0; i< n*m; ++i) {
-        if (a[i] - b[i]) {
-            sum += fabs(a[i]-b[i]);
-        }
+        if (fabs(a[i]-b[i]) > 0.01) return 0;
     }
-    if (sum > 1) return 0;
-    else return 1;
+    return 1;
 }
 
 void timespec_diff(struct timespec *start, struct timespec *stop,
