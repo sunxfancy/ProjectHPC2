@@ -1,0 +1,13 @@
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/xsun042/ProjectHPC2/Project2/build
+[ 77%] [100%] Built target lapack3
+Building CXX object CMakeFiles/project2.dir/src/main.cpp.o
+Linking CXX executable bin/project2
+[100%] Built target project2
+Size,	lapack P,	lapack T,	mydgetrf P,	mydgetrf T,	hp dgetrf P,	hp dgetrf T
+1000,	1.566502,	0.425257,	1.148916,	0.579822,	2.229051,	0.298857
+2000,	1.543587,	3.453859,	0.931408,	5.723948,	2.635332,	2.023021
+3000,	1.482189,	12.141161,	0.927059,	19.411387,	2.906329,	6.191831
+4000,	1.547270,	27.570282,	0.928200,	45.958471,	2.930502,	14.556780
+5000,	1.353224,	61.572101,	0.939804,	88.657706,	2.932302,	28.414824
