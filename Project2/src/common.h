@@ -81,8 +81,18 @@ dgemm_ikj(double *a, double *b, double *c, unsigned int n, unsigned int n1, unsi
         }
 }
 
+/**
+ * This is for the basic matrix multiply function in project 1
+ * a & b is the input matrix A and B
+ * c is the target matrix C (must be all zero before calling)
+ * n, n1, n2 is the the matrix size (A: n x n1  B: n1 x n2  C: n x n2)
+ * la, lb, lc is the matrix width, because when you want to calculate a sub-matrix, 
+ *   that will be useful to indicate the real size of the matrix.
+ */
 void
-dgemm_mixed(double *a, double *b, double *c, unsigned int n, unsigned int n1, unsigned int n2, unsigned int la, unsigned int lb, unsigned int lc) {
+dgemm_mixed(double *a, double *b, double *c, 
+            unsigned int n, unsigned int n1, unsigned int n2, 
+            unsigned int la, unsigned int lb, unsigned int lc) {
     const unsigned int B = 30;
     unsigned int i, j, k, i1, j1, k1, m, m1, m2, r, p;
     /* ikj – blocked version algorithm*/
